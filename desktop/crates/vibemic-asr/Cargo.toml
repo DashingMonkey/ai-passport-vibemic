@@ -1,0 +1,11 @@
+[package]
+name = "vibemic-asr"
+description = "VibeMic local speech recognition: sherpa-onnx SenseVoice-Small wrapper + model management"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sherpa-onnx = "1"
+ureq = { version = "2", features = ["gzip"] }
+dirs = "7"

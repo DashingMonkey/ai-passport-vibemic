@@ -1,0 +1,88 @@
+# =====================================================================
+# Passport VibeMic 仓库级忽略规则
+#   desktop/  Rust + Tauri 2 + Vue 桌面端
+#   device/   ESP-IDF 固件
+# 原则:只忽略「本机生成、不该进版本库」的东西。所有通配扩展名规则都用
+# `git ls-files -i -c --exclude-standard` 验过,没有任何已跟踪文件被命中。
+# =====================================================================
+
+# ---- 通用 ----
+*.log
+logs/
+*.tmp
+*.part
+Thumbs.db
+.DS_Store
+# Windows 重定向误建的保留名文件
+nul
+# 编辑器备份/交换文件
+*~
+*.swp
+*.swo
+# Office 打开文档时生成的锁文件
+~$*
+
+# ---- 编辑器 / IDE ----
+.vscode/
+.idea/
+# AI 助手会话记忆(本机生成,不入库)
+.workbuddy/
+
+# ---- Rust / Tauri / Vue 构建产物 ----
+# 根级 target/ 即覆盖 desktop/target 与各 crate 自己的 target
+target/
+# 链接期中间文件与调试符号(正常都在 target/ 内,这里兜底防手滑)
+*.pdb
+*.ilk
+*.exp
+*.rs.bk
+# cargo vendor / 本地 registry 缓存(desktop/.cargo/config.toml 本身是仓库文件,不忽略)
+desktop/.cargo/registry/
+desktop/.cargo/git/
+# 前端依赖与构建输出
+node_modules/
+desktop/app/dist/
+# tauri 构建时自动生成
+desktop/app/src-tauri/gen/schemas/
+# 前端增量类型检查缓存(vue-tsc)
+*.tsbuildinfo
+# sherpa-onnx 离线构建归档(123MB,按需手动下载;用法见 desktop/.cargo/config.toml 注释)
+desktop/third_party/
+# 本地语音模型(运行时下载到 %APPDATA%,不在仓库)
+*.onnx
+# 包管理器调试日志与本地 store
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# ---- Python(device/tools 与 device/tests 的校验脚本) ----
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# ---- device(ESP-IDF;上游自带 .gitignore,这里兜底常见产物) ----
+device/build/
+device/sdkconfig
+device/sdkconfig.old
+device/managed_components/
+# idf.py 生成的编译数据库
+# 注意:device/dependencies.lock 是上游有意提交的,不要加进来
+device/compile_commands.json
+# 宿主测试编译残留(MSVC 本地跑 validate 时产生)
+device/*.obj
+device/*.exe
+# 仓库内生成的 skill 软链(权威来源在 device/skills/)
+device/.agents/skills/passport-develop
+device/.agents/skills/passport-setup
+device/.agents/skills/passport-build
+device/.agents/skills/passport-device-test
+device/.agents/skills/passport-debug
+
+# ---- 临时录音/调试产物 ----
+*.wav

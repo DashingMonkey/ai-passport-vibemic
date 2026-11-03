@@ -1,0 +1,627 @@
+/* VibeMic 桌面端 —— 圆角卡片、柔和边框、深浅双主题。
+   配色只认 <html> 上的 data-theme(首帧由各 html 内联脚本定色,之后由 src/theme.ts
+   接管);媒体查询不参与配色——「跟随系统」已在 theme.ts 里解析成具体值。 */
+:root {
+  --bg: #10141a;
+  --panel: #171c24;
+  --card: #171c24; /* 卡片与标题栏同底:两者都是"面板",正文底色才是 --bg */
+  --line: #2a3342;
+  --ink: #f2f5f9;
+  --dim: #8fa3bf;
+  --faint: #5d7290;
+  --accent: #4f9cf9;
+  --accent-2: #3b82d6;
+  --ok: #3ecf8e;
+  --warn: #e5484d;
+  --shadow: rgba(0, 0, 0, 0.35);
+  /* ---- 结构规格(标题栏 34px/46px 按钮、控件 30px/7px 圆角、
+     字段底色比卡片略亮、焦点态用品牌色内描边环) ---- */
+  --titlebar-h: 34px;
+  --titlebar-btn-w: 46px;
+  --control-h: 30px;
+  --control-radius: 7px;
+  --field-bg: #1c232e;
+  --field-border: #333d4d;
+  --field-border-hover: #46536a;
+  --focus-ring: inset 0 0 0 1px var(--accent);
+  --hover-bg: rgba(255, 255, 255, 0.08);
+  --hover-bg-strong: rgba(255, 255, 255, 0.14);
+  --close-hover: #e81123;
+  --scrollbar-thumb: rgba(121, 121, 121, 0.4);
+  --scrollbar-thumb-hover: rgba(121, 121, 121, 0.55);
+}
+:root[data-theme="light"] {
+  --bg: #eef1f6;
+  --panel: #ffffff;
+  --card: #ffffff;
+  --line: #d9e0ea;
+  --ink: #1a2230;
+  --dim: #51617c;
+  --faint: #8494ad;
+  --accent: #3178c6;
+  --accent-2: #2a68ab;
+  --ok: #1f9d6b;
+  --warn: #d33f45;
+  --shadow: rgba(23, 32, 48, 0.16);
+  --field-bg: #ffffff;
+  --field-border: #cfd7e3;
+  --field-border-hover: #aab5c6;
+  --hover-bg: rgba(0, 0, 0, 0.055);
+  --hover-bg-strong: rgba(0, 0, 0, 0.1);
+  --scrollbar-thumb: rgba(100, 100, 100, 0.35);
+  --scrollbar-thumb-hover: rgba(100, 100, 100, 0.5);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.5 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  user-select: none;
+}
+/* 悬浮窗页面:body 必须透明,否则全局的不透明背景会填满整个透明窗口
+   (右键菜单撑高窗口时,看起来就是悬浮窗自己变长了) */
+body.widget-body { background: transparent; }
+
+button {
+  /* 默认 ghost 样式:透明底 + 描边,悬停给一层浅底(不用 opacity 糊) */
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+button:hover { background: var(--hover-bg); border-color: var(--field-border-hover); }
+button:active { background: var(--hover-bg-strong); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.primary {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+  color: #fff;
+}
+button.primary:hover { background: var(--accent); border-color: var(--accent); }
+
+/* 只给"文本类"输入框套几何:checkbox / radio 是**透明覆盖**在自定义外观之上的
+   (分段控件的 input、开关的 input),被这条规则套上 height/padding/背景会变成一块
+   看不见但更大的热区(开关 38×21 的轨道下压着 38×30 的可点矩形),
+   还会把「文字居中」的度量带偏。用 :not() 排除,而不是给每个组件再写一遍重置。 */
+input:not([type="checkbox"]):not([type="radio"]), select {
+  height: var(--control-h);
+  background: var(--field-bg);
+  color: var(--ink);
+  border: 1px solid var(--field-border);
+  border-radius: var(--control-radius);
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+input:not([type="checkbox"]):not([type="radio"]):hover, select:hover { border-color: var(--field-border-hover); }
+input:not([type="checkbox"]):not([type="radio"]):focus, select:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
+
+/* ---- 按钮式单选(分段控件)----
+   分段控件的这套排布:
+   语义由原生 radio 承担(同 name 互斥、方向键切换、读屏可达),外观做成并排按钮;
+   input 不 display:none(保持键盘 Tab 可达),而是透明覆盖在按钮上方。 */
+.radio-group {
+  display: inline-flex;
+  height: var(--control-h);
+  border: 1px solid var(--field-border);
+  border-radius: var(--control-radius);
+  overflow: hidden;
+}
+.radio-btn { position: relative; }
+.radio-btn + .radio-btn { border-left: 1px solid var(--field-border); }
+.radio-btn input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.radio-btn span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0 14px;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--field-bg);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s, color 0.12s;
+}
+.radio-btn:hover span { background: var(--hover-bg); }
+.radio-btn input:checked + span { background: var(--accent-2); color: #fff; }
+.radio-btn input:focus-visible + span { box-shadow: var(--focus-ring); }
+
+/* ---- 提示框(ok-box/warn-box):语义色 10% 底 + 35% 描边 ---- */
+.ok-box {
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent);
+  color: var(--ok);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.warn-box {
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+  color: var(--warn);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.hint { font-size: 12px; color: var(--dim); line-height: 1.5; }
+
+/* 细滚动条(对齐 VS Code:半透明滑块、透明轨道、悬停提亮) */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover); }
+::selection { background: color-mix(in srgb, var(--accent) 40%, transparent); }
+
+/* ---- 自绘标题栏(主窗口 decorations:false)----
+   关键点:标题栏用 --panel 底 + 一条 border-bottom,正文用更深的 --bg —— 
+   两者不同色,窗口打开时才能一眼分出"标题栏"和"内容区"。 */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+.titlebar {
+  display: flex;
+  align-items: center;
+  height: var(--titlebar-h);
+  padding-left: 12px;
+  flex: none;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.titlebar-brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.titlebar-logo { width: 18px; height: 18px; border-radius: 4px; -webkit-user-drag: none; }
+.titlebar-name {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--ink);
+}
+/* ---- 标题栏里的设备状态(软件名之后、居左)----
+   原来「状态」页那一大块(连接 + 电量 + 固件)收进这一条:常显、不占内容区。
+   位置紧接品牌名并隔一道 1px 竖线,读起来是「VibeMic │ ● 已连接 🔋72% │ 固件 vX」;
+   窗口按钮由 .titlebar-controls 的 margin-left:auto 继续顶到最右。
+   这一段是**纯展示**,不放可点元素(标题栏的其余部分是拖拽区)。 */
+.titlebar-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+  min-width: 0;
+}
+.conn { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
+.conn-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex: none;
+  background: var(--ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 18%, transparent);
+}
+/* 未连接:点与字变红,电量/固件整块收起(不显示"上次的值") */
+.titlebar-status.off .conn { color: var(--warn); }
+.titlebar-status.off .conn-dot {
+  background: var(--warn);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 18%, transparent);
+}
+.titlebar-status.off .tb-meta { display: none; }
+.tb-meta { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--dim); }
+.tb-meta b { color: var(--ink); font-weight: 600; }
+.tb-sep { width: 1px; height: 12px; background: var(--line); }
+.tb-fw { color: var(--dim); }
+/* 电量图标:外壳描边 + 内芯填充(内芯宽度由 TitleBar.vue 按电量改)。
+   viewBox 32×16 是横向长条,嵌在标题栏里比方形图标更省高度 */
+.batt-ico {
+  width: 22px; height: 11px; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linejoin: round;
+}
+.batt-ico .fill { fill: var(--ok); stroke: none; transition: width .2s; }
+.batt-ico .cap { fill: currentColor; stroke: none; opacity: .55; }
+.titlebar-controls { margin-left: auto; display: flex; height: 100%; }
+/* 整块热区(46×34),最小化/最大化悬停变浅、关闭悬停变红 —— Windows 11 原生比例 */
+.titlebar-btn {
+  width: var(--titlebar-btn-w);
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--dim);
+  transition: background 0.12s, color 0.12s;
+}
+.titlebar-btn:hover { background: var(--hover-bg); color: var(--ink); border: none; }
+.titlebar-btn:active { background: var(--hover-bg-strong); }
+.titlebar-btn.close:hover { background: var(--close-hover); color: #fff; }
+.titlebar-icon { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.2; }
+
+/* ---- 主面板布局:左侧导航 + 内容区(照 agent-bark 的排法)---- */
+.layout { flex: 1; display: flex; min-height: 0; }
+.sidebar {
+  width: var(--nav-w);
+  flex: none;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+}
+/* 导航项用 <button>:先重置全局按钮样式,再套导航外观 */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--dim);
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+.nav-item:hover { background: var(--hover-bg); color: var(--ink); border: none; }
+.nav-item.active, .nav-item.active:hover { background: var(--accent-2); color: #fff; }
+.nav-ico {
+  width: 15px; height: 15px; flex: none;
+  stroke: currentColor; fill: none;
+  stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round;
+}
+.content { flex: 1; overflow-y: auto; padding: 14px 18px 18px; }
+.page-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.page-title { font-size: 16px; font-weight: 600; margin: 0; }
+.page-sub { font-size: 12px; color: var(--faint); }
+/* 顶部非阻塞横幅(设备链接未就绪这类):占满内容区宽度,不与页面内容互斥 */
+.banner { margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+
+/* 卡片(--panel 底 + 描边 + 8px 圆角)。内边距 11/13、行距 9:
+   主窗口只有 880×640,按 16/16 排会让长页顶出去半行 */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 11px 13px;
+}
+.card + .card { margin-top: 9px; }
+.card-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--dim);
+  margin: 0 0 7px;
+}
+
+/* 通用行/排布 */
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.row.tight { gap: 8px; }
+.col { display: flex; flex-direction: column; gap: 6px; }
+.between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.grow { flex: 1; min-width: 0; }
+.mt-8 { margin-top: 8px; }
+.mt-10 { margin-top: 10px; }
+.mt-12 { margin-top: 12px; }
+
+/* 设置行:左标题(+可选说明)、右控件,行间发丝线分隔(agent-bark / VS Code 设置页的排法) */
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+}
+.setting-row + .setting-row { border-top: 1px solid var(--line); }
+.setting-row:first-child { padding-top: 2px; }
+.setting-row:last-child { padding-bottom: 2px; }
+.setting-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.setting-label { font-size: 13px; font-weight: 500; }
+
+/* 开关(开机自启动 / 悬浮窗):38×21 轨道 + 15px 圆点 */
+.switch { position: relative; width: 38px; height: 21px; flex: none; display: block; }
+.switch input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.switch .track {
+  position: absolute; inset: 0;
+  background: color-mix(in srgb, var(--ink) 20%, transparent);
+  border-radius: 999px;
+  transition: background 0.15s;
+}
+.switch .track::after {
+  content: ""; position: absolute; top: 3px; left: 3px;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s;
+}
+.switch input:checked + .track { background: var(--accent-2); }
+.switch input:checked + .track::after { transform: translateX(17px); }
+.switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* 写入中(IPC 往返 + 回读的那一小段):轨道变淡,圆点呼吸,明确"正在生效" */
+.switch.busy { pointer-events: none; }
+.switch.busy .track { opacity: 0.55; }
+.switch.busy .track::after { animation: vm-pulse 1s ease-in-out infinite; }
+@keyframes vm-pulse { 50% { opacity: 0.45; } }
+
+/* 输入类控件(下拉/文本框):与开关、按钮同一套几何 */
+select, input[type="text"] {
+  height: var(--control-h);
+  background: var(--field-bg);
+  color: var(--ink);
+  border: 1px solid var(--field-border);
+  border-radius: var(--control-radius);
+  padding: 0 9px;
+  font: inherit;
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+select:hover, input[type="text"]:hover { border-color: var(--field-border-hover); }
+select:focus, input[type="text"]:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
+/* 下拉箭头自绘:原生箭头带一圈方形按钮区,两种主题下都发灰 */
+select {
+  appearance: none;
+  padding-right: 26px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.25 6.5 8 10.25 11.75 6.5' fill='none' stroke='%238fa3bf' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  background-size: 14px;
+}
+:root[data-theme="light"] select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.25 6.5 8 10.25 11.75 6.5' fill='none' stroke='%235c5c66' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+select.grow { min-width: 180px; }
+
+/* 复选(烧录选项) */
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink); }
+.check input { accent-color: var(--accent-2); width: 14px; height: 14px; margin: 0; }
+
+/* 进度条(模型下载 / 固件烧录) */
+.progress { height: 6px; border-radius: 3px; background: var(--field-bg); overflow: hidden; margin-top: 8px; }
+.progress .bar { height: 100%; background: var(--accent); transition: width 0.3s; }
+
+/* 按键表的键帽 */
+.kbd {
+  display: inline-block;
+  flex: none;
+  min-width: 88px;
+  text-align: center;
+  padding: 1px 10px;
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--ink);
+}
+.key-row { display: flex; align-items: center; gap: 12px; padding: 4px 0; }
+.key-row + .key-row { border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
+
+/* 危险提示条:「烧录会清空设备数据」这类必须先知道的事。
+   与 .warn-box(错误态)刻意分开 —— 它出现在正常流程里,不是报错;
+   右侧直接放该做的动作按钮。 */
+.notice-danger {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--warn) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  color: var(--warn);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.notice-danger .btn { flex: none; border-color: color-mix(in srgb, var(--warn) 45%, transparent); color: var(--warn); }
+.notice-danger .btn:hover { background: color-mix(in srgb, var(--warn) 14%, transparent); border-color: var(--warn); }
+
+/* 烧录日志(等宽、可滚动、自动贴底由组件负责) */
+.flash-log {
+  margin-top: 8px;
+  padding: 8px 10px;
+  max-height: 74px;
+  overflow-y: auto;
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
+  border-radius: 6px;
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--dim);
+  user-select: text;
+}
+.flash-log div:last-child { color: var(--ink); }
+
+/* 只读值:等宽 + 可选中复制(路径、版本号这类"照抄用"的值) */
+.mono { font-family: Consolas, monospace; font-size: 11.5px; }
+.path-text { word-break: break-all; user-select: text; }
+.fw-now { font-family: Consolas, monospace; font-size: 12px; color: var(--ink); user-select: text; }
+
+/* 横排键值:一行三格铺满卡片(「本机信息」这类条目少的清单,比竖排省高度也不留空) */
+.kv-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+  font-size: 12px;
+}
+.kv-row dt { color: var(--dim); margin: 0 0 2px; }
+.kv-row dd {
+  margin: 0;
+  color: var(--ink);
+  font-family: Consolas, monospace;
+  font-size: 11.5px;
+  word-break: break-all;
+  user-select: text;
+}
+
+/* ---- 关于页:一条居中竖轴(图标 / 名称 / 版本 / 描述 / 按钮 / 结论)----
+   照 agent-bark 的关于页;内容区只有 640 高,padding-top 从它的 36 收到 28 */
+.about { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 28px 0 6px; }
+.about-logo {
+  width: 72px; height: 72px; border-radius: 16px;
+  -webkit-user-drag: none;
+}
+.about-name { font-size: 18px; font-weight: 600; margin-top: 14px; }
+.about-version { margin-top: 4px; font-family: Consolas, monospace; font-size: 13px; color: var(--dim); }
+.about-desc { max-width: 420px; margin: 14px 0 0; }
+.about-check { margin-top: 22px; padding: 7px 22px; height: auto; }
+/* 结论行:只在检查之后出现;高度按一行预留,免得「检查中…」把按钮顶得跳一下 */
+.about-msg { margin-top: 12px; font-size: 12px; color: var(--dim); line-height: 1.5; min-height: 18px; }
+.about-msg.failed { color: var(--warn); }
+.about-msg.found { color: var(--ok); }
+.about-src { margin-top: 6px; font-size: 12px; color: var(--faint); min-height: 17px; }
+
+/* ---- 悬浮窗(紧凑:一行,窗口尺寸与 Rust build_widget 一致) ---- */
+#widget {
+  background: transparent;
+  height: 100vh;
+  overflow: hidden;
+}
+/* ---- 悬浮窗:一颗深色胶囊 -------------------------------------------------
+   状态只由**左侧元素**表达(图标 / 波形 / 旋转弧),右侧永远是一句纯文字,
+   文字里不出现任何符号。
+   外壳固定深色(不跟 --bg/--panel 走):它浮在别人界面之上,是独立一层,跟随应用
+   主题变白反而会跟宿主窗口糊在一起。宽度 max-content = 内容宽度,窗口尺寸由
+   Widget.vue 的 syncCardWidth() 对齐 —— 胶囊窄于窗口时,多出来的透明区会变成
+   "看不见但吃点击"的死区。 */
+.widget-card {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: max-content;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 15px;
+  background: #0b0e12;
+  color: #f2f5f9;
+  font-size: 12.5px;
+  line-height: 1;
+  white-space: nowrap;
+  /* 悬停保持普通箭头:grab 的手掌样式太扎眼 */
+  cursor: default;
+  user-select: none;
+  /* 内描边是必需的一档,不是装饰:深色桌面上 #0b0e12 的胶囊边界会糊进背景。
+     中性三态(未连接/待机/识别中)用它,
+     录音中与链路不稳各自换成状态色的环,见下面的 .s-rec / .s-warn。
+
+     **不要再加外阴影**:
+     窗口只有 30px 高、和胶囊一样大(#widget 是 100vh),外阴影的模糊半径
+     (10px,纵向总外扩 ≈12px)整个落在窗口之外,被窗口矩形直接裁掉 —— 屏幕上
+     剩下的就是贴着胶囊上下边的一条**平的**深色带(矩形),看上去像背景没抠干净。
+     子像素圆角也救不了:外阴影根本画不到窗口外面去。
+     想要"浮起来"的层次感只能用**内**阴影(下面这条 1px 高光),或者把窗口做大
+     再把胶囊放中间 —— 后者会让透明死区吃点击(syncCardWidth 的注释里有说明)。 */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.widget-card .txt { font-weight: 500; }
+.widget-card .timer {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #9aa3ae;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2px;
+}
+.widget-card .ic {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: #9aa3ae;
+}
+.widget-card .ic svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.widget-card .ic.spin svg { animation: vm-spin 1.1s linear infinite; }
+@keyframes vm-spin { to { transform: rotate(360deg); } }
+
+/* 录音波形:5 根柱子,高度由**真实电平**驱动(device.rs push_level → "level" 事件);
+   没有电平数据时退化成一条基线,不是假动画。 */
+.widget-card .wave {
+  width: 18px;
+  height: 14px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.widget-card .wave i {
+  display: block;
+  width: 2.5px;
+  height: 10%;
+  border-radius: 2px;
+  background: #ff4d4f;
+  transition: height 90ms linear;
+}
+
+/* 状态配色(固定色值,不引用主题 token:外壳恒为深色) */
+.widget-card.s-off .ic { color: #78818e; }
+.widget-card.s-off .txt { color: #9aa3ae; }
+.widget-card.s-idle .txt { color: #d7dde5; }
+.widget-card.s-rec {
+  /* 只换环的颜色:外阴影一律不加,理由见 .widget-card 的注释(会被窗口裁成矩形) */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 0 0 1px rgba(255, 77, 79, 0.55);
+}
+.widget-card.s-rec .txt { color: #ffffff; }
+.widget-card.s-busy .ic { color: #4f9cf9; }
+.widget-card.s-busy .txt { color: #dbe8f8; }
+.widget-card.s-warn {
+  /* 同上:警告态也只换环色 */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 0 0 1px rgba(224, 161, 58, 0.42);
+}
+.widget-card.s-warn .ic { color: #e0a13a; }
+.widget-card.s-warn .txt { color: #f0d6a6; }
+
+/* ---- 悬浮窗右键菜单(打开时把透明窗口临时撑高容纳菜单) ---- */
+.ctx-menu {
+  display: none;
+  position: absolute;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px var(--shadow);
+  padding: 4px;
+  min-width: 150px;
+  z-index: 10;
+}
+.ctx-item {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.ctx-item:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.ctx-item.checked::after { content: "✓"; margin-left: auto; color: var(--ok); padding-left: 12px; }

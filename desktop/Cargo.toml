@@ -1,0 +1,30 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/vibemic-protocol",
+    "crates/vibemic-link",
+    "crates/vmctl",
+    "crates/vibemic-asr",
+    "app/src-tauri",
+]
+
+[workspace.package]
+version = "0.2.1"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+vibemic-protocol = { path = "crates/vibemic-protocol" }
+vibemic-link = { path = "crates/vibemic-link" }
+vibemic-asr = { path = "crates/vibemic-asr" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "time", "macros"] }
+btleplug = "0.13"
+serialport = "4"
+futures = "0.3"
+
+[profile.release]
+lto = "thin"
+strip = "debuginfo"

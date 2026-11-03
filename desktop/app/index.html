@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>VibeMic</title>
+<script>
+    // 首帧定色(同步,须在样式加载前执行;键名与 src/theme.ts 的 KEY 一致):
+    // 不能 import theme.ts——模块加载晚于首帧,直接内联等价逻辑。
+    (function () {
+      try {
+        var t = localStorage.getItem("vibemic.theme");
+        if (t !== "dark" && t !== "light")
+          t = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        document.documentElement.dataset.theme = t;
+        document.documentElement.style.colorScheme = t;
+      } catch (e) {}
+    })();
+  </script>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,56 @@
+[package]
+name = "vibemic-app"
+description = "VibeMic desktop app: tray + floating status widget + local speech-to-text typed into the focused window"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+# 安装后的 exe 名(Tauri 2 的 productName 只改安装器名,不改 exe 名)
+default-run = "VibeMic"
+
+[[bin]]
+name = "VibeMic"
+path = "src/main.rs"
+
+[lib]
+name = "vibemic_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2.11", features = ["tray-icon"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+vibemic-link = { workspace = true }
+vibemic-asr = { workspace = true }
+vibemic-protocol = { workspace = true }
+enigo = "0.6"
+dirs = "7"
+# 烧录:esp-rs 的 esptool 实现(库形态)。默认特性里的 `cli` 会拖进 clap/reqwest/quinn
+# 一整套与烧录无关的依赖,GUI 只用库 API,所以关掉默认特性、只留串口。
+espflash = { version = "4.6.0", default-features = false, features = ["serialport"] }
+serialport = { workspace = true }
+sha2 = "0.10"
+md-5 = "0.10"
+tauri-plugin-dialog = "2.8.1"
+# 开机自启动:写系统的启动项(HKCU\...\Run),前端调用、无 Rust 侧代码。
+# 插件自带 Windows 实现,只需在 lib.rs 的 builder 上 init。
+tauri-plugin-autostart = "2"
+# 单实例:托盘应用被双击第二次时不能再起一份(会多出第二个托盘图标与第二个悬浮窗,
+# 两个进程还会抢同一个 BLE 连接)。第二个实例把已在跑的那个唤到前台后自退。
+# 必须注册在 builder 的**最前面**(它要靠一个本地 socket 抢名字,晚了窗口已经建出来了)。
+tauri-plugin-single-instance = "2"
+# 「检查更新」的 HTTP 客户端。用 ureq 而不是 reqwest:只需两个 GET + JSON,
+# 不需要 async 运行时;它已经因模型下载进了依赖树,不新增编译负担。
+ureq = { version = "2", features = ["json", "gzip"] }
+
+[target.'cfg(target_os = "windows")'.dependencies.windows]
+version = "0.61"
+features = [
+    "Win32_System_Com",
+    "Win32_System_Ole",
+    "Win32_System_Variant",
+    "Win32_UI_Accessibility",
+    "Win32_UI_WindowsAndMessaging",
+]

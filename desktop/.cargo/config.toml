@@ -1,0 +1,6 @@
+# sherpa-onnx-sys 离线构建:预编译归档放 third_party/sherpa-onnx/(GitHub release
+# 直连不稳定,build 脚本自带的下载在国内网络常失败)。缺失时 build.bat 会按
+# Cargo.lock 中的版本自动下载;升级 sherpa-onnx 后重跑 build.bat 即可补齐。
+# relative = true 以 .cargo 的上级目录(desktop/)为基准解析,仓库移动/改名不受影响。
+[env]
+SHERPA_ONNX_ARCHIVE_DIR = { value = "third_party/sherpa-onnx", relative = true }

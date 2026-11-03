@@ -1,0 +1,25 @@
+[package]
+name = "vibemic-link"
+description = "DeviceLink transport for VibeMic: BLE (btleplug) with USB-serial fallback"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+vibemic-protocol = { workspace = true }
+btleplug = { workspace = true }
+serialport = { workspace = true }
+tokio = { workspace = true }
+uuid = { workspace = true }
+futures = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.dependencies.windows]
+version = "0.61"
+features = [
+    "Devices_Bluetooth",
+    "Devices_Bluetooth_GenericAttributeProfile",
+    "Devices_Enumeration",
+    "Win32_System_Com",
+    "Foundation",
+    "Storage_Streams",
+]

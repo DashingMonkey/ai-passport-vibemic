@@ -22,46 +22,27 @@ npm run build               # 前端产物 → app/dist(相对路径,file:// 也
 npm run tauri dev           # 开发(需要能绑定 127.0.0.1:1420)
 ```
 
-一键构建(依赖检查 → 首次下载 sherpa-onnx 引擎归档约 117MB 到 `third_party/` →
-关掉运行中的实例 → **等旧 exe 的文件锁放开** → 前端类型检查 → release 构建 → 启动并唤出面板):
-`desktop\build.bat`。
+发布构建走 `cd app && npm run typecheck && npm run tauri build`(交付并启动独立 exe 必须走
+Tauri CLI)。普通 `cargo build --release` 只保证 Rust 编译；未开启 Tauri 的 `custom-protocol`
+时仍会访问开发服务器，导致“无法访问此页面”。
 
-交付并启动独立 exe 必须走 `build.bat` 或 `npm run tauri build`。普通 `cargo build --release`
-只保证 Rust 编译；未开启 Tauri 的 `custom-protocol` 时仍会访问开发服务器，导致“无法访问此页面”。
+发布构建时,下面几条是踩过的坑:
 
-`build.bat` 有几个坑是踩过之后加的,**改它之前先看这几条**:
-
-- **编码必须是 GBK(系统 OEM 码页 936)、CRLF、不带 BOM**。cmd 执行批处理时按**当前控制台
-  码页**读文件,不是 UTF-8:文件存成 UTF-8 的话中文注释在命令行窗口里是乱码,而码页切到
-  65001 又会让 `for /f` 解析外部命令输出出错(`Cargo.lock` 的版本号就是这么读的,直接
-  报 "Cannot read sherpa-onnx-sys version")。所以**保持 936 + GBK**,不要加 `chcp 65001`。
-  用编辑工具改完要重新转码(编辑器多半按 UTF-8 保存):
-  ```powershell
-  $p = "desktop\build.bat"
-  $t = [System.IO.File]::ReadAllText($p, (New-Object System.Text.UTF8Encoding($false)))
-  $t = $t -replace "`r`n","`n" -replace "`n","`r`n"
-  [System.IO.File]::WriteAllBytes($p, [System.Text.Encoding]::GetEncoding(936).GetBytes($t))
-  ```
-  同理别存成裸 LF:cmd 会一行都不执行,只报 "The system cannot find the path specified"。
-- **`if (...)` 块内的 `echo` 不能出现右括号**:cmd 会在那个括号处提前结束块,报
-  "was unexpected at this time"。要解释"范围"就写成 `10s`/`10 秒`(如 `after %WAITED%s`),
-  不要写 `(约 10s)`。
 - **必须等 exe 的文件锁放开**,不能只 `taskkill` 就往下走:exe 刚跑过时 Windows 还占着
   映像几秒,这期间 cargo 链接会以 `failed to remove ... 拒绝访问` 收场,整轮 release 构建
   白跑。判据是"能不能删掉"(只读检测看不出独占锁),删完 cargo 会重新生成。
-- **启动时要带 `--show-panel`**:软件平时是"托盘常驻、面板不弹",构建脚本不改这个默认行为,
+- **启动时要带 `--show-panel`**:软件平时是"托盘常驻、面板不弹",构建不会改这个默认行为,
   只是这一次把面板调出来,否则用户看不到任何窗口、以为没构建成功。
-- **引擎归档必须先校验再用**:脚本下完归档做两层校验——体积下限(挡住几百 KB 的残包)
-  + `tar -tjf` 能否列出目录(bz2 流完整、尾部索引可读);不通过就删掉重下,并把"该删哪个
-  文件、去哪儿手工下"写进报错。**别退回"文件存在就算下好了"的写法**:下载中断留下的
-  半个 `.tar.bz2` 会让 `sherpa-onnx-sys` 的 build script 在解压时报
-  `failed to unpack ... 某个 .lib`,真因完全看不出来,而且之后每次构建都在同一处失败。
-  同样**别把期望字节数钉死**:归档名里的版本号是从 `Cargo.lock` 动态读的,升级
-  sherpa-onnx 后体积会变,钉死会让脚本陷入"删掉重下还是不过"的死循环。另外下载**不要
-  用 `-C -`**:残包已在上面删掉,带着断点续传只会把上一次的坏前缀留在文件里。
+- **引擎归档必须先校验再用**:下载完要做两层校验——体积下限(挡住几百 KB 的残包)
+  + `tar -tjf` 能否列出目录(bz2 流完整、尾部索引可读);不通过就删掉重下。**别退回
+  "文件存在就算下好了"的写法**:下载中断留下的半个 `.tar.bz2` 会让 `sherpa-onnx-sys`
+  的 build script 在解压时报 `failed to unpack ... 某个 .lib`,真因完全看不出来,而且之后
+  每次构建都在同一处失败。同样**别把期望字节数钉死**:归档名里的版本号是从 `Cargo.lock`
+  读的,升级 sherpa-onnx 后体积会变。另外下载**不要用 `-C -`**:残包要先删掉,带着断点续传
+  只会把上一次的坏前缀留在文件里。
 - **离线通道优先于下载**:`third_party\sherpa-onnx\` 下若已有解压好的预编译库
   (`lib\sherpa-onnx-core.lib`,或 `<归档名去掉 .tar.bz2>\lib\sherpa-onnx-core.lib`),
-  脚本就设 `SHERPA_ONNX_LIB_DIR` 并跳过归档与下载(sherpa-onnx-sys 的 build script
+  设 `SHERPA_ONNX_LIB_DIR` 指向它即可跳过归档与下载(sherpa-onnx-sys 的 build script
   最高优先级看这个变量)。弱网机器最省事的做法:从能构建成功的那台把
   `target\sherpa-onnx-prebuilt\sherpa-onnx-v*-lib\lib` 拷过去。
 

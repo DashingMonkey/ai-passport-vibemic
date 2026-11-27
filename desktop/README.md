@@ -38,30 +38,28 @@ vmctl record out.wav        # 按住 OK 录一段，落盘 WAV（语音链路验
 
 ## 构建桌面应用
 
-一键(依赖检查 → 首次自动下载 sherpa-onnx 引擎归档约 117MB 到 `third_party/` ——
-下完会校验完整性,中断留下的残包自动删掉重下;若那里已有解压好的 `lib/` 就直接复用、
-不再下载 → 关掉运行中的实例 → 前端类型检查 → release 构建 → 启动):
-
-```bat
-desktop\build.bat
-```
-
-手动方式:
-
 ```bash
 cd app
 npm install
+npm run typecheck
 npm run tauri dev        # 开发
 npm run tauri build      # 产出双击可用的 exe(release)
 ```
+
+构建前先退出正在运行的 VibeMic:exe 被占用时 cargo 链接会以"拒绝访问"收场。
 
 产物为 `target/release/VibeMic.exe`。
 **这一个文件就是完整交付物**:设备链路同进程,不需要任何 sidecar exe。
 若将来要出安装包,把 `tauri.conf.json` 的 `bundle.active` 改成 true 即可
 (当前没有额外二进制需要打包)。
 
-构建脚本跑完会**直接把配置面板打开**(正常启动是不弹面板、只留托盘的,刚构建完看不到
-任何窗口会让人以为没成功)。面板关掉只是收回托盘;**退出走托盘图标的右键菜单**。
+首次构建还需要 sherpa-onnx 预编译引擎(约 117MB)。`third_party/sherpa-onnx/` 下若已有解压好的
+`lib/sherpa-onnx-core.lib`,`.cargo/config.toml` 会直接复用、不再下载;否则按 `Cargo.lock` 里
+`sherpa-onnx-sys` 的版本,从 [sherpa-onnx releases](https://github.com/k2-fsa/sherpa-onnx/releases)
+下载 `sherpa-onnx-v<版本>-win-x64-static-MT-Release-lib.tar.bz2` 并解压到 `third_party/sherpa-onnx/`。
+
+构建完成后建议用 `VibeMic.exe --show-panel` 启动:正常启动是不弹面板、只留托盘的,刚构建完
+看不到任何窗口容易让人以为没成功。面板关掉只是收回托盘;**退出走托盘图标的右键菜单**。
 软件同时只允许跑一份:再双击一次 exe 不会起第二个进程,而是把已经开着的面板调到前台。
 
 ## 固件烧录
